@@ -5,20 +5,23 @@ import Leave from "./model/leave.model.js";
 import cors from "cors";
 import nodemailer from "nodemailer";
 
-const PORT = 3500;
+const PORT = process.env.PORT || 3500;;
 const app = express();
 
-connectDB();
+// connectDB();
 
 app.use(express.json());
 app.use(cors());
 
-app.post("/", async (req, res) => {
+app.get("/api/test", (req, res) => {
+  res.send("Server Running OK");
+});
+
+
+app.post("/api/submit", async (req, res) => {
   const data = req.body;
-  // console.log("my data: ", data);
 
   try {
-    // res.send('bjbjbjbj');
     // Save leave to MongoDB
     // const result = await Leave.create(data);
 
@@ -48,7 +51,7 @@ app.post("/", async (req, res) => {
 
 
     res.status(201).json({
-      message: "Leave submitted and email sent successfully",
+      message: "Email sent successfully",
       // result,
     });
   } catch (error) {
@@ -57,13 +60,17 @@ app.post("/", async (req, res) => {
   }
 });
 
-mongoose.connection.once("open", () => {
-  console.log("MongoDB Connected Successfully");
-  app.listen(PORT, () => {
+app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });
-});
 
-mongoose.connection.on("error", (err) => {
-  console.error("MongoDB Connection Error: ", err);
-});
+// mongoose.connection.once("open", () => {
+//   console.log("MongoDB Connected Successfully");
+//   app.listen(PORT, () => {
+//     console.log(`Server is running on port ${PORT}`);
+//   });
+// });
+
+// mongoose.connection.on("error", (err) => {
+//   console.error("MongoDB Connection Error: ", err);
+// });
