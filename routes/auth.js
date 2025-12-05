@@ -8,9 +8,9 @@ import { authMiddleware } from "./../middleware/auth.js";
 
 const router = express.Router();
 
-router.get('/test', async (req, res) => {
-    res.send('Server is Running ok');
-})
+router.get("/test", async (req, res) => {
+  res.send("Server is Running ok");
+});
 
 // REGISTER
 router.post("/register", async (req, res) => {
@@ -106,6 +106,62 @@ router.post("/send", authMiddleware, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: "Failed to submit leave", error });
+  }
+});
+
+// fORGOT pASSWORD
+router.post("/forgot-password", async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: "Email does not exist" });
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "15m",
+    });
+
+    // Configure mail transporter
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: "sahilsharma83999@gmail.com",
+        pass: "fgfj upky enzo oehf",
+      },
+    });
+
+    const link = `http://localhost:3500/api/reset-password/${token}`;
+
+    await transporter.sendMail({
+      to: user.email,
+      subject: "Password Reset Request",
+      text: `Click the link to reset your password: ${link}`,
+    });
+
+    res.json({ message: "Reset link sent to email" });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Reset Password
+router.post("/reset-password/:token", async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) return res.status(400).json({ message: "Invalid Token" });
+
+    user.password = password;
+    await user.save();
+
+    res.json({ message: "Password reset successful" });
+  } catch (err) {
+    res.status(400).json({ message: "Token expired or invalid" });
   }
 });
 
