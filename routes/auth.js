@@ -130,7 +130,7 @@ router.post("/forgot-password", async (req, res) => {
       },
     });
 
-    const link = `http://localhost:3500/api/reset-password/${token}`;
+    const link = `process.env.FRONT_END_URL${token}`;
 
     await transporter.sendMail({
       to: user.email,
@@ -156,12 +156,25 @@ router.post("/reset-password/:token", async (req, res) => {
 
     if (!user) return res.status(400).json({ message: "Invalid Token" });
 
-    user.password = password;
+    // user.password = password;
+    const hashed = await bcrypt.hash(password, 10);
+    user.password = hashed;
     await user.save();
 
     res.json({ message: "Password reset successful" });
   } catch (err) {
     res.status(400).json({ message: "Token expired or invalid" });
+  }
+});
+
+// Delete all users
+router.delete("/delete-all", async (req, res) => {
+  try {
+    await User.deleteMany({});
+    res.status(200).json({ message: "All users deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting users:", error);
+    res.status(500).json({ message: "Failed to delete users" });
   }
 });
 
