@@ -15,12 +15,12 @@ app.use(cors());
 app.use("/api", AuthRoutes);
 
 mongoose.connection.once("open", () => {
-  console.log("MongoDB Connected Successfully");
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
+	console.log("MongoDB Connected Successfully");
+	app.listen(PORT, () => {
+		console.log(`Server is running on port ${PORT}`);
+	});
 });
 
 mongoose.connection.on("error", (err) => {
-  console.error("MongoDB Connection Error: ", err);
+	console.error("MongoDB Connection Error: ", err);
 });
