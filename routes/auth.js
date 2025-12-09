@@ -85,17 +85,33 @@ router.post("/send", authMiddleware, async (req, res) => {
       },
     });
 
+    let type = "";
+
+    if (data.leave_type === "half") {
+      type = "Half Day";
+    } else if (data.leave_type === "full_day") {
+      type = "Full Day";
+    } else if (data.leave_type === "short") {
+      type = "Short Leave";
+    } else {
+      type = "Restricted";
+    }
+    
     // Email options
     const mailOptions = {
-      from: "ragbrok194@gmail.com",
+      from: `"Leave Application System" <no-reply@netmente.com>`,
+      replyTo: data.email,
       to: "sahil.sharma.01@netmente.com",
-      subject: `Leave Request: ${data.leave_type}`,
+      subject: `Leave Request: ${type}`,
       text: `
-                Leave Type: ${data.leave_type}
-                Start Date: ${data.start_date}
-                End Date: ${data.end_date}
-                Reason: ${data.reason}
-              `,
+        Leave Request Details:
+
+        Employee Email: ${data.email}
+        Leave Type: ${data.leave_type}
+        Start Date: ${data.start_date}
+        End Date: ${data.end_date}
+        Reason: ${data.reason}
+    `,
     };
 
     await transporter.sendMail(mailOptions);
@@ -105,7 +121,7 @@ router.post("/send", authMiddleware, async (req, res) => {
       result,
     });
   } catch (err) {
-    res.status(500).json({ message: "Failed to submit leave", error });
+    res.status(500).json({ message: "Failed to submit leave", err });
   }
 });
 
