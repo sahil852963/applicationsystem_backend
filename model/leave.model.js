@@ -3,8 +3,10 @@ import mongoose from "mongoose";
 const leaveSchema = new mongoose.Schema(
   {
     leave_type: { type: String, required: true },
-    start_date: { type: Date, required: true },
-    end_date: { type: Date, required: true },
+    email: { type: String, required: true },
+    time: { type: String },
+    date: { type: Date, required: true },
+    end_date: { type: Date },
     reason: { type: String, required: true },
   },
   { timestamps: true }

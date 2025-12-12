@@ -86,13 +86,16 @@ router.post("/send", authMiddleware, async (req, res) => {
 		});
 
 		let type = "";
+		let time = "";
 
 		if (data.leave_type === "half") {
 			type = "Half Day";
+			time =` Time: ${data.time}`;
 		} else if (data.leave_type === "full_day") {
 			type = "Full Day";
 		} else if (data.leave_type === "short") {
 			type = "Short Leave";
+			time =` Time: ${data.time}`;
 		} else {
 			type = "Restricted";
 		}
@@ -101,17 +104,17 @@ router.post("/send", authMiddleware, async (req, res) => {
 		const mailOptions = {
 			from: `"Leave Application System" <no-reply@netmente.com>`,
 			replyTo: data.email,
-			to: "sahil.sharma.01@netmente.com",
+			to: "ragbrok194@gmail.com",
 			subject: `Leave Request: ${type}`,
 			text: `
-        Leave Request Details:
+		Leave Request Details:
 
-        Employee Email: ${data.email}
-        Leave Type: ${data.leave_type}
-        Start Date: ${data.start_date}
-        End Date: ${data.end_date}
-        Reason: ${data.reason}
-    `,
+		Employee Email: ${data.email}
+		Leave Type: ${type}
+		Date: ${data.date}
+		${time ? `${time}` : ''}
+		Reason: ${data.reason}
+			`,
 		};
 
 		await transporter.sendMail(mailOptions);
@@ -149,7 +152,8 @@ router.post("/forgot-password", async (req, res) => {
 		const link = `process.env.FRONT_END_URL${token}`;
 
 		await transporter.sendMail({
-			to: user.email,
+			to: "ragbrok194@gmail.com",
+			// to: user.email,
 			subject: "Password Reset Request",
 			text: `Click the link to reset your password: ${link}`,
 		});
@@ -184,14 +188,25 @@ router.post("/reset-password/:token", async (req, res) => {
 });
 
 // Delete all users
-router.delete("/delete-all", async (req, res) => {
+// router.delete("/delete-all", async (req, res) => {
+// 	try {
+// 		await User.deleteMany({});
+// 		res.status(200).json({ message: "All users deleted successfully" });
+// 	} catch (error) {
+// 		console.error("Error deleting users:", error);
+// 		res.status(500).json({ message: "Failed to delete users" });
+// 		}
+// });
+
+// Delete all leaves
+router.delete("/delete-all-leaves", async (req, res) => {
 	try {
-		await User.deleteMany({});
-		res.status(200).json({ message: "All users deleted successfully" });
+		await Leave.deleteMany({});
+		res.status(200).json({ message: "All leaves deleted successfully" });
 	} catch (error) {
-		console.error("Error deleting users:", error);
-		res.status(500).json({ message: "Failed to delete users" });
-	}
+		console.error("Error deleting leaves:", error);
+		res.status(500).json({ message: "Failed to delete leaves" });
+		}
 });
 
 export default router;
