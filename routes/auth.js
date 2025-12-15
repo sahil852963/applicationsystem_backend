@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import User from "../model/user.model.js";
 import Leave from "../model/leave.model.js";
 import { authMiddleware } from "./../middleware/auth.js";
+import {convertUTCToISTDateOnly} from "../config/convertUTCToISTDateOnly.js";
 
 const router = express.Router();
 
@@ -74,7 +75,18 @@ router.post("/login", async (req, res) => {
 router.post("/send", authMiddleware, async (req, res) => {
 	try {
 		const data = req.body;
-		const result = await Leave.create(data);
+
+		// ✅ Convert date(s) to IST (single or multiple)
+		const istDate = convertUTCToISTDateOnly(data.date);
+
+		// ✅ Prepare data to save
+		const leaveData = {
+			...data,
+			date: istDate,
+		};
+
+		// ✅ Save to DB
+		const result = await Leave.create(leaveData);
 
 		// Configure Nodemailer
 		const transporter = nodemailer.createTransport({
@@ -90,15 +102,22 @@ router.post("/send", authMiddleware, async (req, res) => {
 
 		if (data.leave_type === "half") {
 			type = "Half Day";
-			time =` Time: ${data.time}`;
+			time = `Time: ${data.time}`;
 		} else if (data.leave_type === "full_day") {
 			type = "Full Day";
 		} else if (data.leave_type === "short") {
 			type = "Short Leave";
-			time =` Time: ${data.time}`;
+			time = `Time: ${data.time}`;
+		} else if (data.leave_type === "multi") {
+			type = "Multiple Leave";
 		} else {
 			type = "Restricted";
 		}
+
+		// ✅ Format date for email
+		const dateForMail = Array.isArray(istDate)
+			? istDate.join(", ")
+			: istDate;
 
 		// Email options
 		const mailOptions = {
@@ -107,26 +126,28 @@ router.post("/send", authMiddleware, async (req, res) => {
 			to: "ragbrok194@gmail.com",
 			subject: `Leave Request: ${type}`,
 			text: `
-		Leave Request Details:
+Leave Request Details:
 
-		Employee Email: ${data.email}
-		Leave Type: ${type}
-		Date: ${data.date}
-		${time ? `${time}` : ''}
-		Reason: ${data.reason}
+Employee Email: ${data.email}
+Leave Type: ${type}
+Date: ${dateForMail}
+${time ? time : ""}
+Reason: ${data.reason}
 			`,
 		};
 
-		await transporter.sendMail(mailOptions);
+		// await transporter.sendMail(mailOptions);
 
 		res.status(201).json({
-			message: "Email sent successfully",
+			message: "Leave submitted successfully",
 			result,
 		});
 	} catch (err) {
-		res.status(500).json({ message: "Failed to submit leave", err });
+		console.error(err);
+		res.status(500).json({ message: "Failed to submit leave", error: err.message });
 	}
 });
+
 
 // fORGOT pASSWORD
 router.post("/forgot-password", async (req, res) => {
@@ -206,7 +227,7 @@ router.delete("/delete-all-leaves", async (req, res) => {
 	} catch (error) {
 		console.error("Error deleting leaves:", error);
 		res.status(500).json({ message: "Failed to delete leaves" });
-		}
+	}
 });
 
 export default router;
