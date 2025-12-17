@@ -5,7 +5,6 @@ import jwt from "jsonwebtoken";
 import User from "../model/user.model.js";
 import Leave from "../model/leave.model.js";
 import { authMiddleware } from "./../middleware/auth.js";
-import {convertUTCToISTDateOnly} from "../config/convertUTCToISTDateOnly.js";
 
 const router = express.Router();
 
@@ -72,23 +71,71 @@ router.post("/login", async (req, res) => {
 });
 
 // Send mail
+// Send Leave Route
 router.post("/send", authMiddleware, async (req, res) => {
 	try {
 		const data = req.body;
+		// console.log(data);
 
-		// ✅ Convert date(s) to IST (single or multiple)
-		const istDate = convertUTCToISTDateOnly(data.date);
+		if (!data.leaves || !Array.isArray(data.leaves) || data.leaves.length === 0) {
+			return res.status(400).json({ message: "No leaves provided" });
+		}
 
-		// ✅ Prepare data to save
-		const leaveData = {
-			...data,
-			date: istDate,
+		// Convert "YYYY-MM-DD" to IST date string
+		const convertToIST = (dateStr) => {
+			const d = new Date(`${dateStr}T00:00:00Z`);
+			if (isNaN(d)) throw new Error(`Invalid date value: ${dateStr}`);
+			d.setMinutes(d.getMinutes() + 330); // IST offset
+			return d.toISOString().split("T")[0];
 		};
 
-		// ✅ Save to DB
-		const result = await Leave.create(leaveData);
+		// Process leaves
+		const processedLeaves = data.leaves.map((leave) => ({
+			date: convertToIST(leave.date),
+			leave_type: leave.leave_type,
+			session: leave.session || null
+		}));
 
-		// Configure Nodemailer
+		// Prepare leave document according to your schema
+		const leaveDoc = {
+			email: data.email,
+			leave_mode: data.leave_mode,
+			leaves: processedLeaves,
+			reason: data.reason
+		};
+
+		// Save to DB
+		const result = await Leave.create(leaveDoc);
+
+		// Prepare email content
+		const leaveDescriptions = processedLeaves
+			.map((l) => {
+				let type = "";
+				let time = "";
+
+				switch (l.leave_type) {
+					case "half":
+						type = "Half Day";
+						time = `Session: ${l.session || "-"}`;
+						break;
+					case "short":
+						type = "Short Leave";
+						time = `Session: ${l.session || "-"}`;
+						break;
+					case "full_day":
+						type = "Full Day";
+						break;
+					case "restricted":
+						type = "Restricted";
+						break;
+					default:
+						type = l.leave_type;
+				}
+
+				return `Leave Type: ${type}\nDate: ${l.date}\n${time ? time : ""}`;
+			})
+			.join("\n\n");
+
 		const transporter = nodemailer.createTransport({
 			service: "gmail",
 			auth: {
@@ -97,41 +144,18 @@ router.post("/send", authMiddleware, async (req, res) => {
 			},
 		});
 
-		let type = "";
-		let time = "";
-
-		if (data.leave_type === "half") {
-			type = "Half Day";
-			time = `Time: ${data.time}`;
-		} else if (data.leave_type === "full_day") {
-			type = "Full Day";
-		} else if (data.leave_type === "short") {
-			type = "Short Leave";
-			time = `Time: ${data.time}`;
-		} else if (data.leave_type === "multi") {
-			type = "Multiple Leave";
-		} else {
-			type = "Restricted";
-		}
-
-		// ✅ Format date for email
-		const dateForMail = Array.isArray(istDate)
-			? istDate.join(", ")
-			: istDate;
-
-		// Email options
 		const mailOptions = {
 			from: `"Leave Application System" <no-reply@netmente.com>`,
 			replyTo: data.email,
 			to: "ragbrok194@gmail.com",
-			subject: `Leave Request: ${type}`,
+			subject: `Leave Request from ${data.email}`,
 			text: `
 Leave Request Details:
 
 Employee Email: ${data.email}
-Leave Type: ${type}
-Date: ${dateForMail}
-${time ? time : ""}
+
+${leaveDescriptions}
+
 Reason: ${data.reason}
 			`,
 		};
@@ -218,6 +242,9 @@ router.post("/reset-password/:token", async (req, res) => {
 // 		res.status(500).json({ message: "Failed to delete users" });
 // 		}
 // });
+
+
+
 
 // Delete all leaves
 router.delete("/delete-all-leaves", async (req, res) => {
