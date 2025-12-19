@@ -1,10 +1,6 @@
 import express from "express";
-import bcrypt from "bcryptjs";
-import nodemailer from "nodemailer";
-import jwt from "jsonwebtoken";
-import User from "../model/user.model.js";
-import Leave from "../model/leave.model.js";
 import { authMiddleware } from "./../middleware/auth.js";
+import { SendEmailController, UserRegisterController, UserLoginController, ForgotPasswordController, ResetPasswordController, DataDeleteController } from "../controller/index.js";
 
 const router = express.Router();
 
@@ -13,224 +9,23 @@ router.get("/test", async (req, res) => {
 });
 
 // REGISTER
-router.post("/register", async (req, res) => {
-	try {
-		const { name, email, password } = req.body;
-
-		const exist = await User.findOne({ email });
-		if (exist)
-			return res.status(400).json({ message: "Email already registered" });
-
-		const hashed = await bcrypt.hash(password, 10);
-		const newUser = await User.create({ name, email, password: hashed });
-
-		const token = jwt.sign(
-			{ id: newUser._id, email: newUser.email },
-			process.env.JWT_SECRET,
-			{ expiresIn: "1d" }
-		);
-
-		res.json({
-			message: "User registered successfully",
-			token,
-			newUser: { id: newUser._id, email: newUser.email },
-		});
-		// res.status(201).json({ message: "User registered", user: newUser });
-	} catch (err) {
-		res.status(500).json({ message: err.message });
-	}
-});
+router.post("/register", UserRegisterController);
 
 // LOGIN
-router.post("/login", async (req, res) => {
-	try {
-		const { email, password } = req.body;
+router.post("/login", UserLoginController);
 
-		const user = await User.findOne({ email });
-		if (!user)
-			return res.status(401).json({ message: "Invalid email or password" });
-
-		const match = await bcrypt.compare(password, user.password);
-		if (!match)
-			return res.status(401).json({ message: "Invalid email or password" });
-
-		const token = jwt.sign(
-			{ id: user._id, email: user.email },
-			process.env.JWT_SECRET,
-			{ expiresIn: "1d" }
-		);
-
-		res.json({
-			message: "Login successful",
-			token,
-			user: { id: user._id, email: user.email },
-		});
-	} catch (err) {
-		res.status(500).json({ message: err.message });
-	}
-});
-
-// Send mail
 // Send Leave Route
-router.post("/send", authMiddleware, async (req, res) => {
-	try {
-		const data = req.body;
-		// console.log(data);
-
-		if (!data.leaves || !Array.isArray(data.leaves) || data.leaves.length === 0) {
-			return res.status(400).json({ message: "No leaves provided" });
-		}
-
-		// Convert "YYYY-MM-DD" to IST date string
-		const convertToIST = (dateStr) => {
-			const d = new Date(`${dateStr}T00:00:00Z`);
-			if (isNaN(d)) throw new Error(`Invalid date value: ${dateStr}`);
-			d.setMinutes(d.getMinutes() + 330); // IST offset
-			return d.toISOString().split("T")[0];
-		};
-
-		// Process leaves
-		const processedLeaves = data.leaves.map((leave) => ({
-			date: convertToIST(leave.date),
-			leave_type: leave.leave_type,
-			session: leave.session || null
-		}));
-
-		// Prepare leave document according to your schema
-		const leaveDoc = {
-			email: data.email,
-			leave_mode: data.leave_mode,
-			leaves: processedLeaves,
-			reason: data.reason
-		};
-
-		// Save to DB
-		const result = await Leave.create(leaveDoc);
-
-		// Prepare email content
-		const leaveDescriptions = processedLeaves
-			.map((l) => {
-				let type = "";
-				let time = "";
-
-				switch (l.leave_type) {
-					case "half":
-						type = "Half Day";
-						time = `Session: ${l.session || "-"}`;
-						break;
-					case "short":
-						type = "Short Leave";
-						time = `Session: ${l.session || "-"}`;
-						break;
-					case "full_day":
-						type = "Full Day";
-						break;
-					case "restricted":
-						type = "Restricted";
-						break;
-					default:
-						type = l.leave_type;
-				}
-
-				return `Leave Type: ${type}\nDate: ${l.date}\n${time ? time : ""}`;
-			})
-			.join("\n\n");
-
-		const transporter = nodemailer.createTransport({
-			service: "gmail",
-			auth: {
-				user: "sahilsharma83999@gmail.com",
-				pass: "fgfj upky enzo oehf",
-			},
-		});
-
-		const mailOptions = {
-			from: `"Leave Application System" <no-reply@netmente.com>`,
-			replyTo: data.email,
-			to: "ragbrok194@gmail.com",
-			subject: `Leave Request from ${data.email}`,
-			text: `
-Leave Request Details:
-
-Employee Email: ${data.email}
-
-${leaveDescriptions}
-
-Reason: ${data.reason}
-			`,
-		};
-
-		// await transporter.sendMail(mailOptions);
-
-		res.status(201).json({
-			message: "Leave submitted successfully",
-			result,
-		});
-	} catch (err) {
-		console.error(err);
-		res.status(500).json({ message: "Failed to submit leave", error: err.message });
-	}
-});
-
+router.post("/send", authMiddleware, SendEmailController);
 
 // fORGOT pASSWORD
-router.post("/forgot-password", async (req, res) => {
-	const { email } = req.body;
-
-	try {
-		const user = await User.findOne({ email });
-		if (!user) return res.status(400).json({ message: "Email does not exist" });
-
-		const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-			expiresIn: "15m",
-		});
-
-		// Configure mail transporter
-		const transporter = nodemailer.createTransport({
-			service: "gmail",
-			auth: {
-				user: "sahilsharma83999@gmail.com",
-				pass: "fgfj upky enzo oehf",
-			},
-		});
-
-		const link = `process.env.FRONT_END_URL${token}`;
-
-		await transporter.sendMail({
-			to: "ragbrok194@gmail.com",
-			// to: user.email,
-			subject: "Password Reset Request",
-			text: `Click the link to reset your password: ${link}`,
-		});
-
-		res.json({ message: "Reset link sent to email" });
-	} catch (err) {
-		console.log(err);
-		res.status(500).json({ message: "Server error" });
-	}
-});
+router.post("/forgot-password", ForgotPasswordController);
 
 // Reset Password
-router.post("/reset-password/:token", async (req, res) => {
-	const { token } = req.params;
-	const { password } = req.body;
+router.post("/reset-password/:token", ResetPasswordController);
 
-	try {
-		const decoded = jwt.verify(token, process.env.JWT_SECRET);
-		const user = await User.findById(decoded.id);
+// Delete all leaves
+router.delete("/delete-all-leaves", DataDeleteController);
 
-		if (!user) return res.status(400).json({ message: "Invalid Token" });
-
-		// user.password = password;
-		const hashed = await bcrypt.hash(password, 10);
-		user.password = hashed;
-		await user.save();
-
-		res.json({ message: "Password reset successful" });
-	} catch (err) {
-		res.status(400).json({ message: "Token expired or invalid" });
-	}
-});
 
 // Delete all users
 // router.delete("/delete-all", async (req, res) => {
@@ -242,19 +37,5 @@ router.post("/reset-password/:token", async (req, res) => {
 // 		res.status(500).json({ message: "Failed to delete users" });
 // 		}
 // });
-
-
-
-
-// Delete all leaves
-router.delete("/delete-all-leaves", async (req, res) => {
-	try {
-		await Leave.deleteMany({});
-		res.status(200).json({ message: "All leaves deleted successfully" });
-	} catch (error) {
-		console.error("Error deleting leaves:", error);
-		res.status(500).json({ message: "Failed to delete leaves" });
-	}
-});
 
 export default router;
