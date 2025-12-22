@@ -4,28 +4,24 @@ import Leave from "../model/leave.model.js";
 export const SendEmailController = async (req, res) => {
     try {
         const data = req.body;
-        // console.log(data);
 
         if (!data.leaves || !Array.isArray(data.leaves) || data.leaves.length === 0) {
             return res.status(400).json({ message: "No leaves provided" });
         }
 
-        // Convert "YYYY-MM-DD" to IST date string
         const convertToIST = (dateStr) => {
             const d = new Date(`${dateStr}T00:00:00Z`);
             if (isNaN(d)) throw new Error(`Invalid date value: ${dateStr}`);
-            d.setMinutes(d.getMinutes() + 330); // IST offset
+            d.setMinutes(d.getMinutes() + 330); 
             return d.toISOString().split("T")[0];
         };
 
-        // Process leaves
         const processedLeaves = data.leaves.map((leave) => ({
             date: convertToIST(leave.date),
             leave_type: leave.leave_type,
             session: leave.session || null
         }));
 
-        // Prepare leave document according to your schema
         const leaveDoc = {
             email: data.email,
             leave_mode: data.leave_mode,
@@ -33,10 +29,8 @@ export const SendEmailController = async (req, res) => {
             reason: data.reason
         };
 
-        // Save to DB
         const result = await Leave.create(leaveDoc);
 
-        // Prepare email content
         const leaveDescriptions = processedLeaves
             .map((l) => {
                 let type = "";
